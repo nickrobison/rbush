@@ -34,7 +34,7 @@ rbush.prototype = {
             result = [],
             toBBox = this.toBBox;
 
-        if (!intersects(bbox, node.bbox)) return result;
+        if (!intersects(bbox, node)) return result;
 
         var nodesToSearch = [],
             i, len, child, childBBox;
@@ -43,7 +43,7 @@ rbush.prototype = {
             for (i = 0, len = node.children.length; i < len; i++) {
 
                 child = node.children[i];
-                childBBox = node.leaf ? toBBox(child) : child.bbox;
+                childBBox = node.leaf ? toBBox(child) : child;
 
                 if (intersects(bbox, childBBox)) {
                     if (node.leaf) result.push(child);
@@ -62,7 +62,7 @@ rbush.prototype = {
         var node = this.data,
             toBBox = this.toBBox;
 
-        if (!intersects(bbox, node.bbox)) return false;
+        if (!intersects(bbox, node)) return false;
 
         var nodesToSearch = [],
             i, len, child, childBBox;
@@ -71,7 +71,7 @@ rbush.prototype = {
             for (i = 0, len = node.children.length; i < len; i++) {
 
                 child = node.children[i];
-                childBBox = node.leaf ? toBBox(child) : child.bbox;
+                childBBox = node.leaf ? toBBox(child) : child;
 
                 if (intersects(bbox, childBBox)) {
                     if (node.leaf || contains(bbox, childBBox)) return true;
@@ -127,7 +127,6 @@ rbush.prototype = {
 
     clear: function () {
         this.data = createNode([]);
-        this.data.bbox = empty();
         return this;
     },
 
@@ -162,7 +161,7 @@ rbush.prototype = {
                 }
             }
 
-            if (!goingUp && !node.leaf && contains(node.bbox, bbox)) { // go down
+            if (!goingUp && !node.leaf && contains(node, bbox)) { // go down
                 path.push(node);
                 indexes.push(i);
                 i = 0;
@@ -182,8 +181,8 @@ rbush.prototype = {
 
     toBBox: function (item) { return item; },
 
-    compareMinX: function (a, b) { return a.x - b.x; },
-    compareMinY: function (a, b) { return a.y - b.y; },
+    compareMinX: compareNodeMinX,
+    compareMinY: compareNodeMinY,
 
     toJSON: function () { return this.data; },
 
@@ -223,8 +222,6 @@ rbush.prototype = {
             // target number of root entries to maximize storage utilization
             M = Math.ceil(N / Math.pow(M, height - 1));
         }
-
-        // TODO eliminate recursion?
 
         node = createNode([]);
         node.height = height;
@@ -271,8 +268,8 @@ rbush.prototype = {
 
             for (i = 0, len = node.children.length; i < len; i++) {
                 child = node.children[i];
-                area = bboxArea(child.bbox);
-                enlargement = enlargedArea(bbox, child.bbox) - area;
+                area = bboxArea(child);
+                enlargement = enlargedArea(bbox, child) - area;
 
                 // choose entry with the least area enlargement
                 if (enlargement < minEnlargement) {
@@ -298,7 +295,7 @@ rbush.prototype = {
     _insert: function (item, level, isNode) {
 
         var toBBox = this.toBBox,
-            bbox = isNode ? item.bbox : toBBox(item),
+            bbox = isNode ? item : toBBox(item),
             insertPath = [];
 
         // find the best node for accommodating the item, saving all nodes along the path too
@@ -306,7 +303,7 @@ rbush.prototype = {
 
         // put the item into the node
         node.children.push(item);
-        extend(node.bbox, bbox);
+        extend(node, bbox);
 
         // split on node overflow; propagate upwards if necessary
         while (level >= 0) {
@@ -408,13 +405,13 @@ rbush.prototype = {
 
         for (i = m; i < M - m; i++) {
             child = node.children[i];
-            extend(leftBBox, node.leaf ? toBBox(child) : child.bbox);
+            extend(leftBBox, node.leaf ? toBBox(child) : child);
             margin += bboxMargin(leftBBox);
         }
 
         for (i = M - m - 1; i >= m; i--) {
             child = node.children[i];
-            extend(rightBBox, node.leaf ? toBBox(child) : child.bbox);
+            extend(rightBBox, node.leaf ? toBBox(child) : child);
             margin += bboxMargin(rightBBox);
         }
 
@@ -424,7 +421,7 @@ rbush.prototype = {
     _adjustParentBBoxes: function (bbox, path, level) {
         // adjust bboxes along the given tree path
         for (var i = level; i >= 0; i--) {
-            extend(path[i].bbox, bbox);
+            extend(path[i], bbox);
         }
     },
 
@@ -463,16 +460,16 @@ rbush.prototype = {
 
 // calculate node's bbox from bboxes of its children
 function calcBBox(node, toBBox) {
-    node.bbox = distBBox(node, 0, node.children.length, toBBox);
+    distBBox(node, 0, node.children.length, toBBox, node);
 }
 
 // min bounding rectangle of node children from k to p-1
-function distBBox(node, k, p, toBBox) {
-    var bbox = empty();
+function distBBox(node, k, p, toBBox, destNode) {
+    var bbox = destNode ? setEmptyBBox(destNode) : empty();
 
     for (var i = k, child; i < p; i++) {
         child = node.children[i];
-        extend(bbox, node.leaf ? toBBox(child) : child.bbox);
+        extend(bbox, node.leaf ? toBBox(child) : child);
     }
 
     return bbox;
@@ -487,6 +484,14 @@ function empty() {
     };
 }
 
+function setEmptyBBox(bbox) {
+    bbox.x = Infinity;
+    bbox.y = Infinity;
+    bbox.x2 = -Infinity;
+    bbox.y2 = -Infinity;
+    return bbox;
+}
+
 function extend(a, b) {
     a.x = Math.min(a.x, b.x);
     a.y = Math.min(a.y, b.y);
@@ -495,8 +500,8 @@ function extend(a, b) {
     return a;
 }
 
-function compareNodeMinX(a, b) { return a.bbox.x - b.bbox.x; }
-function compareNodeMinY(a, b) { return a.bbox.y - b.bbox.y; }
+function compareNodeMinX(a, b) { return a.x - b.x; }
+function compareNodeMinY(a, b) { return a.y - b.y; }
 
 function bboxArea(a)   { return (a.x2 - a.x) * (a.y2 - a.y); }
 function bboxMargin(a) { return (a.x2 - a.x) + (a.y2 - a.y); }
@@ -535,7 +540,10 @@ function createNode(children) {
         children: children,
         height: 1,
         leaf: true,
-        bbox: null
+        x: Infinity,
+        y: Infinity,
+        x2: -Infinity,
+        y2: -Infinity
     };
 }
 

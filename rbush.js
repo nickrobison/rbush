@@ -126,12 +126,8 @@ rbush.prototype = {
     },
 
     clear: function () {
-        this.data = {
-            children: [],
-            height: 1,
-            bbox: empty(),
-            leaf: true
-        };
+        this.data = createNode([]);
+        this.data.bbox = empty();
         return this;
     },
 
@@ -215,12 +211,7 @@ rbush.prototype = {
 
         if (N <= M) {
             // reached leaf level; return leaf
-            node = {
-                children: items.slice(left, right + 1),
-                height: 1,
-                bbox: null,
-                leaf: true
-            };
+            node = createNode(items.slice(left, right + 1));
             calcBBox(node, this.toBBox);
             return node;
         }
@@ -235,12 +226,8 @@ rbush.prototype = {
 
         // TODO eliminate recursion?
 
-        node = {
-            children: [],
-            height: height,
-            bbox: null,
-            leaf: false
-        };
+        node = createNode([]);
+        node.leaf = false;
 
         // split the items into M mostly square tiles
 
@@ -343,12 +330,9 @@ rbush.prototype = {
 
         var splitIndex = this._chooseSplitIndex(node, m, M);
 
-        var newNode = {
-            children: node.children.splice(splitIndex, node.children.length - splitIndex),
-            height: node.height
-        };
-
-        if (node.leaf) newNode.leaf = true;
+        var newNode = createNode(node.children.splice(splitIndex, node.children.length - splitIndex));
+        newNode.height = node.height;
+        newNode.leaf = node.leaf;
 
         calcBBox(node, this.toBBox);
         calcBBox(newNode, this.toBBox);
@@ -359,10 +343,9 @@ rbush.prototype = {
 
     _splitRoot: function (node, newNode) {
         // split root node
-        this.data = {
-            children: [node, newNode],
-            height: node.height + 1
-        };
+        this.data = createNode([node, newNode]);
+        this.data.height = node.height + 1;
+        this.data.leaf = false;
         calcBBox(this.data, this.toBBox);
     },
 
@@ -544,6 +527,15 @@ function intersects(a, b) {
            b.y <= a.y2 &&
            b.x2 >= a.x &&
            b.y2 >= a.y;
+}
+
+function createNode(children) {
+    return {
+        children: children,
+        height: 1,
+        leaf: true,
+        bbox: null
+    };
 }
 
 // sort an array so that items come in groups of n unsorted items, with groups sorted between each other;

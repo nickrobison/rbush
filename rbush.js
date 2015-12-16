@@ -227,6 +227,7 @@ rbush.prototype = {
         // TODO eliminate recursion?
 
         node = createNode([]);
+        node.height = height;
         node.leaf = false;
 
         // split the items into M mostly square tiles

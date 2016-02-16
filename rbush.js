@@ -453,7 +453,10 @@ rbush.prototype = {
         this.compareMinX = new Function('a', 'b', compareArr.join(format[0]));
         this.compareMinY = new Function('a', 'b', compareArr.join(format[1]));
 
-        this.toBBox = new Function('a', 'return [a' + format.join(', a') + '];');
+        this.toBBox = new Function('a', 'return {x: a' + format[0] +
+            ', y: a' + format[1] +
+            ', x2: a' + format[2] +
+            ', y2: a' + format[3] + '};');
     }
 };
 
